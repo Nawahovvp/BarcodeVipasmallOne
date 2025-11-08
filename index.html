@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Label 102x30 mm</title>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;700&display=swap');
     body {
@@ -45,8 +46,8 @@
       margin-bottom: 1mm;
     }
     .qr {
-      width: 12.5mm;
-      height: 12.5mm;
+      width: 8mm;
+      height: 8mm;
       margin-right: 5mm;
       margin-left: 3mm;
     }
@@ -72,7 +73,7 @@
       line-height: 1.2;
     }
     .description {
-      font-size: 10px;
+      font-size: 11px;
       font-weight: bold;
       text-align: left;
       line-height: 1.2;
@@ -85,14 +86,28 @@
       margin: 0;
       margin-left: 2mm;
     }
-    .location {
-      font-size: 12px;
-      font-weight: bold;
-      text-align: left;
+    .location-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
       margin-top: 1px;
       margin-bottom: 0;
-      line-height: 1.1;
       margin-left: 2mm;
+      margin-right: 1mm;
+    }
+    .location {
+      font-size: 13px;
+      font-weight: bold;
+      text-align: left;
+      line-height: 1.1;
+      margin: 0;
+      flex: 1;
+    }
+    .barcode {
+      width: 20mm;
+      height: 6mm;
+      margin: 0;
     }
     .lot-line {
       display: flex;
@@ -178,20 +193,16 @@
   <div id="app">
     <p style="text-align:center;">กำลังโหลดข้อมูล...</p>
   </div>
-
   <script>
     const sheetID = "1Fe39m1Zn788PT_f_of5DskZB44AJHcO93u8ABOwjECM";
     const sheetName = "Data_Add";
     const url = `https://opensheet.elk.sh/${sheetID}/${sheetName}`;
-
     async function loadAndRender() {
       try {
         // Ensure spinner is shown for at least 3 seconds
         const minLoadingTime = new Promise(resolve => setTimeout(resolve, 3000));
-
         const response = await fetch(url);
         const data = await response.json();
-
         const cleanedData = data.map(row => ({
           Material: row['Material'] || '',
           QtyPrint: row['QtyPrint'] || '',
@@ -205,13 +216,10 @@
           Unit: row['Unit'] || '',
           แผนก: row['แผนก'] || ''
         }));
-
         // Wait for both data fetch and minimum loading time
         await Promise.all([minLoadingTime, Promise.resolve()]);
-
         // Hide spinner
         document.getElementById('spinner').style.display = 'none';
-
         renderLabels(cleanedData);
       } catch (err) {
         document.getElementById('spinner').style.display = 'none';
@@ -219,17 +227,14 @@
         console.error(err);
       }
     }
-
     function renderLabels(data) {
       const app = document.getElementById('app');
       app.innerHTML = '<div class="container"></div>';
       const container = app.querySelector('.container');
-
       // Filter data to include only rows with non-empty Material and Serial = 'true'
       const validData = data.filter(row => row.Material && row.Material.trim() !== '' && row.Serial === 'true');
-      
+     
       validData.sort((a, b) => a.Material.localeCompare(b.Material));
-
       const expandedData = [];
       validData.forEach(row => {
         const qty = Math.max(1, row.จำนวน);
@@ -237,14 +242,11 @@
           expandedData.push({ ...row });
         }
       });
-
       for (let i = 0; i < expandedData.length; i += 2) {
         const sticker = document.createElement('div');
         sticker.className = 'sticker';
-
         const label1 = createLabel(expandedData[i]);
         sticker.appendChild(label1);
-
         if (i + 1 < expandedData.length) {
           const label2 = createLabel(expandedData[i + 1]);
           sticker.appendChild(label2);
@@ -254,83 +256,82 @@
           emptyLabel.innerHTML = '<div class="description">ไม่มีข้อมูล</div>';
           sticker.appendChild(emptyLabel);
         }
-
         container.appendChild(sticker);
       }
-
       // If no valid data, display a message
       if (expandedData.length === 0) {
         app.innerHTML = '<p style="text-align:center;">ไม่พบข้อมูลให้ Print อ้ายสัส</p>';
       }
     }
-
     function createLabel(row) {
       const label = document.createElement('div');
       label.className = 'label';
-
       const rowDiv = document.createElement('div');
       rowDiv.className = 'row';
-
       const qrCanvas = document.createElement('canvas');
       qrCanvas.className = 'qr';
       rowDiv.appendChild(qrCanvas);
-
       const textContainer = document.createElement('div');
       textContainer.style.display = 'flex';
       textContainer.style.flexDirection = 'column';
-
       const materialDiv = document.createElement('div');
       materialDiv.className = 'material';
       materialDiv.textContent = row.Material;
       textContainer.appendChild(materialDiv);
-
       const technicianDiv = document.createElement('div');
       technicianDiv.className = 'technician';
       technicianDiv.textContent = row.ชื่อช่าง;
       textContainer.appendChild(technicianDiv);
-
       const departmentDiv = document.createElement('div');
       departmentDiv.className = 'department';
       departmentDiv.textContent = row.แผนก;
       textContainer.appendChild(departmentDiv);
-
       rowDiv.appendChild(textContainer);
       label.appendChild(rowDiv);
-
       const desc = document.createElement('div');
       desc.className = 'description';
       desc.textContent = row.Description;
       label.appendChild(desc);
-
+      const locationRow = document.createElement('div');
+      locationRow.className = 'location-row';
       const loc = document.createElement('div');
       loc.className = 'location';
-      loc.textContent = `Location: ${row.Storagebin}`;
-      label.appendChild(loc);
-
+      loc.textContent = `Loc: ${row.Storagebin}`;
+      locationRow.appendChild(loc);
+      const barcodeCanvas = document.createElement('canvas');
+      barcodeCanvas.className = 'barcode';
+      locationRow.appendChild(barcodeCanvas);
+      label.appendChild(locationRow);
       const now = new Date();
       const formattedDate = `${now.getFullYear().toString().slice(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
-
       const lot = document.createElement('div');
       lot.className = 'lot-line';
       lot.innerHTML = `
         <span>Lot: ${formattedDate} (${row.จำนวน}) ${row.Pack} ${row.Unit}</span>
       `;
       label.appendChild(lot);
-
+      const codeText = row.Material || 'N/A';
       if (typeof QRCode !== 'undefined') {
-        QRCode.toCanvas(qrCanvas, row.Material || 'N/A', {
-          width: 50,
-          height: 50,
+        QRCode.toCanvas(qrCanvas, codeText, {
+          width: 32,
+          height: 32,
           margin: 0,
           errorCorrectionLevel: 'L'
         }, err => {
           if (err) console.error('QR Error:', err);
         });
       }
-
+      if (typeof JsBarcode !== 'undefined') {
+        JsBarcode(barcodeCanvas, codeText, {
+          format: 'CODE128',
+          width: 1.0,
+          height: 25,
+          displayValue: false,
+          margin: 0
+        });
+      }
       return label;
     }
-
     loadAndRender();
   </script>
 </body>
